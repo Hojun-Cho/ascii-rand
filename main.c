@@ -14,6 +14,14 @@ int pRand(int min, int max)
     max -= 1;
     return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
+
+typedef struct planet_s
+{
+	int	x;
+	int	y;
+	int	r;
+}	planet_t;
+
 void clear_map()
 {
 	for (int i = 0; i < LINES; i++)
@@ -67,35 +75,56 @@ void	*food_thread()
 	}
 }
 
+void	write_planet(planet_t *p)
+{
+	for (int i = 0; i < p->r; i++)
+	{
+		for (int j =0; j < p->r; j++)
+		{
+			mvaddch(p->y + i, p->x + j, '@');
+		}
+	}
+}
+
+void	clear_planet(planet_t *p)
+{
+	for (int i = 0; i < p->r; i++)
+	{
+		for (int j =0; j < p->r; j++)
+		{
+			mvaddch(p->y + i, p->x + j, ' ');
+		}
+	}
+}
+
+
 void	*user_thread()
 {
-	int user_y = pRand(0, LINES);
-	int user_x = pRand(0, COLS);
-	mvaddch(user_y, user_x, '^');
+	planet_t p = {.x = pRand(0, COLS), .y = pRand(0, LINES), .r = 1};
+	planet_t bkp;
+	write_planet(&p);
 	refresh();
-
 	while (1)
 	{
-		int bkp_y = user_y;
-		int bkp_x = user_x;
+		bkp = p;
 		switch (getch())
 		{
 			case 'w':
-				user_y -= 1;
+				p.y -= 1;
 				break;
 			case 'a':
-				user_x -= 1;
+				p.x -= 1;
 				break;
 			case 's':
-				user_y += 1;
+				p.y += 1;
 				break;
 			case 'd':
-				user_x += 1;
-				break;
-			
+				p.r += 1;
+				p.x += 1;
+				break;	
 		}
-		mvaddch(bkp_y, bkp_x, ' ');
-		mvaddch(user_y, user_x, '^');
+		clear_planet(&bkp);
+		write_planet(&p);	
 		refresh();
 	}	
 }
