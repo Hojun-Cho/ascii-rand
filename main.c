@@ -4,173 +4,143 @@
 #include <assert.h>
 #include <curses.h>
 #include <stdio.h>
+#include <pthread.h>
 #include <time.h>  
 #include <signal.h>
+#include <string.h>
 
-typedef struct
+int pRand(int min, int max)
 {
-	int w;
-	int h;
-	int speed;
-	int color;
-	char shape;
-} drop_t;
-
-typedef struct
+    max -= 1;
+    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+}
+void clear_map()
 {
-	drop_t *drops;
-	int size;
-	int cap;
-} vector_t;
-
-int	pRand(int min, int max)
-{
-	max -= 1;
-	return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+	for (int i = 0; i < LINES; i++)
+		mvhline(i, 0, ' ', COLS);
 }
 
-void v_add(vector_t *v, drop_t d);
-
-void exit_err(const char *err)
+void write_lines(int start, char *lines[])
 {
-    /*exitCurses();*/
-	perror(err);
-    exit(1);
-}
+	int max_len = 0;
+	int count = 0;
 
-drop_t new_drop()
-{
-	drop_t d;
-
-	d.w = pRand(0, COLS);
-	d.h = pRand(0, LINES);
-	d.speed = pRand(1, 3);
-	d.shape = pRand(32, 126);
-	d.color = pRand(0, 255);
-	return (d);
-}
-
-void v_init(vector_t *v, uint32_t cap)
-{
-	assert (cap != 0);
-
-	v->drops = malloc(sizeof(drop_t) * cap);
-	if (v->drops == NULL)
-		exit_err("can't alloc");
-	v->size = 0;
-	v->cap = cap;	
-}
-
-void v_free(vector_t *v)
-{
-	if (v->drops != 0)
+	while (lines[count])
 	{
-		free(v->drops);
-		v->drops = 0;
+		int line_len = strlen(lines[count]);
+		if (line_len > max_len)
+			max_len = line_len;
+		count++;
 	}
-
-	v->size = 0;
-	v->cap = 0;
+	for (int i = 0; i < count; i++)
+		mvaddstr(LINES / 2 - (start - count - i),
+				COLS / 2 - (max_len / 2),
+				lines[i]);
 }
 
-void v_resize(vector_t *v, uint32_t new_cap)
+void menu()
 {
-	v->drops = realloc(v->drops, (sizeof(drop_t) * new_cap));
-	if (v->drops == NULL)
-		exit_err("can't alloc");
-	v->cap = new_cap;
-	for (uint32_t i = v->size; i < new_cap; i++)
-		v_add(v, new_drop());
-}
-
-
-
-void v_add(vector_t *v, drop_t d)
-{
-	if (v->size >= v->cap)
-		v_resize(v, 2 * v->cap);
-	v->drops[v->size] = d;
-	v->size++;
-}
-
-drop_t *v_getAt(vector_t *v, uint32_t pos)
-{
-	assert ((pos < v->size));
-
-	return v->drops + pos;
-}
-
-void handleResize()
-{
-	endwin();
+	clear_map();
+	char *items[9] = {
+        "+================+",
+        "| Planet  Arcade |",
+        "+================+",
+        "",
+        "Select a game or exit",
+        "",
+        "[0] Exit",
+        "[1] Play",
+        NULL
+    };
+	write_lines(12, items);
 	refresh();
-	erase();
+	sleep(3);
 }
 
-void init_curses()
+void	*food_thread()
 {
-	initscr();
-	noecho();
-	cbreak();
-	keypad(stdscr, 1); 
-	curs_set(0);
-	timeout(10);
-	signal(SIGWINCH, handleResize);
-
-	if (!has_colors() || !can_change_color())
-		exit_err("can't change color");
-	
-	use_default_colors();
-	start_color();
-	for (uint16_t i = 0; i < COLORS; i++)
-		init_pair(i + 1, i, -1);
+	while (1)
+	{
+		for (int i = 0; i < 100; i++)
+			mvaddch(pRand(0, LINES), pRand(0, COLS), '@');
+		sleep(3);
+	}
 }
 
-void exit_curses_()
+void	*user_thread()
 {
-	curs_set(1);
-	clear();
+	int user_y = pRand(0, LINES);
+	int user_x = pRand(0, COLS);
+	mvaddch(user_y, user_x, '^');
 	refresh();
-	resetty();
-	endwin();
+
+	while (1)
+	{
+		int bkp_y = user_y;
+		int bkp_x = user_x;
+		switch (getch())
+		{
+			case 'w':
+				user_y -= 1;
+				break;
+			case 'a':
+				user_x -= 1;
+				break;
+			case 's':
+				user_y += 1;
+				break;
+			case 'd':
+				user_x += 1;
+				break;
+			
+		}
+		mvaddch(bkp_y, bkp_x, ' ');
+		mvaddch(user_y, user_x, '^');
+		refresh();
+	}	
 }
 
-void d_fall(drop_t *d)
-{
-	if ((d->h += d->speed) >= LINES - 1)
-		d->h = pRand(0, 10);	
+void run_game() {
+    pthread_t threads[2];
+
+    pthread_create(&threads[1], NULL, user_thread, NULL);
+
+    pthread_join(threads[1], NULL);
 }
 
-void d_show(drop_t *d)
+
+
+int	choice()
 {
-	attron(COLOR_PAIR(d->color));
-	mvaddch(d->h, d->w, d->shape);
+	return (1);
 }
 
 int main()
 {
-	srand((uint32_t) getpid());
-	init_curses();
-
+	initscr();
+    cbreak();
+    noecho();
+    nodelay(stdscr, TRUE);
+    curs_set(0);
+    start_color();
 	while (1)
 	{
-		uint32_t drops_total = (uint32_t) (COLS * 2.0);
-		vector_t drops;
-		v_init(&drops, drops_total);
-		for (uint32_t i = 0; i < drops_total; i++)
-			v_add(&drops, new_drop());
-
-		for (int i = 0; i < drops_total; i++)
+		menu();
+		clear_map();
+		refresh();
+		switch (choice())
 		{
-			d_fall(v_getAt(&drops, i));
-			d_show(v_getAt(&drops, i));
+			case 0:
+				break;
+			case 1:
+				run_game();
+				sleep(1000);
+				break;
+			default:
+				endwin();
+				exit(1);
 		}
-
-		sleep(1);
-
-		if (wgetch(stdscr) == 'q')
-			break;	
 	}
-
-	exit_curses_();
+	
+	endwin();
 }

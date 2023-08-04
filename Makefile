@@ -1,4 +1,4 @@
 NAME = rain
 
 all:
-	 cc main.c -lncurses
+	 cc main.c -lncurses -lpthread
